@@ -58,8 +58,6 @@ def eval_one_epoch(cfg, model, dataloader, epoch_id, logger, dist_test=False, sa
         load_data_to_gpu(batch_dict)
         with torch.no_grad():
             pred_dicts, ret_dict = model(batch_dict)
-            print('pred_dicts:', pred_dicts)
-            print('ret_dict:', ret_dict)
             if display:
                 V.draw_scenes(
                     points=batch_dict['points'][:, 1:].cpu().numpy(),

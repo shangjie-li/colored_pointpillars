@@ -141,22 +141,22 @@ class BaseBEVBackbone(nn.Module):
         """
         spatial_features = data_dict['spatial_features']
         semantic_features = data_dict['semantic_features']
-        fusion_features = data_dict['fusion_features']
         
-        #~ features = self.fusion_layers(torch.cat([spatial_features, semantic_features], dim=1)) # 20220103, Car 3d AP: 86.9950, 77.4302, 75.3491
-        #~ features = self.fusion_layers(fusion_features) # 20220104, c=10, kernel_size=1, (r+g+b) / 3, Car 3d AP: 85.1289, 74.7592, 71.3553
-        #~ features = self.fusion_layers(semantic_features) # 20220105, Car 3d AP: 57.3326, 45.4200, 43.6049
-        #~ features = self.fusion_layers(fusion_features) # 20220106, c=10, kernel_size=3, (r+g+b) / 3, Car 3d AP: 85.9584, 75.9415, 71.7329
-        #~ features = self.fusion_layers(fusion_features) # 20220107, c=20, kernel_size=1, (r+g+b) / 3, Car 3d AP: 86.4965, 76.8295, 72.0208
-        #~ features = self.fusion_layers(fusion_features) # 20220108, c=40, kernel_size=1, (r+g+b) / 3, Car 3d AP: 87.0098, 76.9380, 73.1823
-        #~ features = self.fusion_layers(fusion_features) # 20220109, c=40, kernel_size=1, intensity, Car 3d AP: 74.7418, 58.3303, 56.4951
-        #~ features = self.fusion_layers(torch.cat([spatial_features, fusion_features], dim=1)) # 20220110, c=64+40, Car 3d AP: 86.1564, 76.6295, 74.6659
-        features = self.fusion_layers(fusion_features) # 20220111, c=40, kernel_size=1, occupancy, Car 3d AP: 87.6261, 77.5537, 74.9875 -> this shows colored_pointpillars is shit!!!
+        #~ features = self.fusion_layers(torch.cat([spatial_features, semantic_features], dim=1)) # 20220103, c=64+3, Car 3d AP: 86.9950, 77.4302, 75.3491
+        #~ features = self.fusion_layers(semantic_features) # 20220104, c=10, kernel_size=1, (r+g+b) / 3, Car 3d AP: 85.1289, 74.7592, 71.3553
+        #~ features = self.fusion_layers(semantic_features) # 20220105, c=3, kernel_size=7, (r,g,b), Car 3d AP: 57.3326, 45.4200, 43.6049
+        #~ features = self.fusion_layers(semantic_features) # 20220106, c=10, kernel_size=3, (r+g+b) / 3, Car 3d AP: 85.9584, 75.9415, 71.7329
+        #~ features = self.fusion_layers(semantic_features) # 20220107, c=20, kernel_size=1, (r+g+b) / 3, Car 3d AP: 86.4965, 76.8295, 72.0208
+        #~ features = self.fusion_layers(semantic_features) # 20220108, c=40, kernel_size=1, (r+g+b) / 3, Car 3d AP: 87.0098, 76.9380, 73.1823
+        #~ features = self.fusion_layers(semantic_features) # 20220109, c=40, kernel_size=1, intensity, Car 3d AP: 74.7418, 58.3303, 56.4951
+        #~ features = self.fusion_layers(torch.cat([spatial_features, semantic_features], dim=1)) # 20220110, c=64+40, Car 3d AP: 86.1564, 76.6295, 74.6659
         
-        #~ features = self.fusion_layers(torch.cat([spatial_features, fusion_features], dim=1)) # 20220112, c=64+10, Car 3d AP: 86.4325, 76.9217, 75.4987
-        #~ features = self.fusion_layers(torch.cat([spatial_features, fusion_features], dim=1)) # 20220113, c=64+20, Car 3d AP: 86.7387, 77.1374, 75.2964
-        #~ features = self.fusion_layers(fusion_features) # 20220114, c=10, kernel_size=7, (r+g+b) / 3, Car 3d AP: 85.9258, 75.2121, 71.6240
-        #~ features = self.fusion_layers(fusion_features) # 20220115, c=30, kernel_size=1, (r,g,b), Car 3d AP: 84.4311, 75.5213, 71.4392
+        features = self.fusion_layers(semantic_features) # 20220111, c=40, kernel_size=1, occupancy, Car 3d AP: 87.6261, 77.5537, 74.9875 -> this shows colored_pointpillars is shit!!!
+        
+        #~ features = self.fusion_layers(torch.cat([spatial_features, semantic_features], dim=1)) # 20220112, c=64+10, Car 3d AP: 86.4325, 76.9217, 75.4987
+        #~ features = self.fusion_layers(torch.cat([spatial_features, semantic_features], dim=1)) # 20220113, c=64+20, Car 3d AP: 86.7387, 77.1374, 75.2964
+        #~ features = self.fusion_layers(semantic_features) # 20220114, c=10, kernel_size=7, (r+g+b) / 3, Car 3d AP: 85.9258, 75.2121, 71.6240
+        #~ features = self.fusion_layers(semantic_features) # 20220115, c=30, kernel_size=1, (r,g,b), Car 3d AP: 84.4311, 75.5213, 71.4392
         
         #~ features = spatial_features # 20220116, torch.max(), Linear(in_features=10, out_features=64), Car 3d AP: 86.5273, 76.9653, 75.6938
         #~ features = spatial_features # 20220117, torch.mean(), Linear(in_features=10, out_features=64), Car 3d AP: 87.0298, 77.0740, 75.5394

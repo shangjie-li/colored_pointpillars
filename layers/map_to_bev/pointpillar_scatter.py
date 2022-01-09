@@ -45,33 +45,6 @@ class PointPillarScatter(nn.Module):
         batch_size = points[:, 0].max().int().item() + 1
         for batch_idx in range(batch_size):
             semantic_features = torch.zeros(
-                3, self.ny, self.nx, dtype=pillar_features.dtype, device=pillar_features.device)
-            
-            batch_mask = points[:, 0] == batch_idx
-            this_points = points[batch_mask, :]
-            xs = (this_points[:, 1] / self.voxel_x).type(torch.long)
-            ys = (this_points[:, 2] / self.voxel_y + self.ny / 2).type(torch.long)
-            xs = torch.clamp(xs, min=0, max=self.nx - 1)
-            ys = torch.clamp(ys, min=0, max=self.ny - 1)
-            semantic_features[:, ys, xs] = this_points[:, -3:].t()
-            
-            #~ semantic_features_numpy = (semantic_features.permute(1, 2, 0).cpu().numpy() * 255).astype(np.int)
-            #~ print('semantic_features_numpy', semantic_features_numpy.shape)
-            #~ plt.imshow(semantic_features_numpy)
-            #~ plt.axis('off')
-            #~ plt.show()
-            
-            batch_semantic_features.append(semantic_features)
-            
-        batch_semantic_features = torch.stack(batch_semantic_features, 0)
-        batch_semantic_features = batch_semantic_features.view(batch_size, 3, self.ny, self.nx)
-        batch_dict['semantic_features'] = batch_semantic_features
-        
-        points = batch_dict['points']
-        batch_fusion_features = []
-        batch_size = points[:, 0].max().int().item() + 1
-        for batch_idx in range(batch_size):
-            fusion_features = torch.zeros(
                 40, self.ny, self.nx, dtype=pillar_features.dtype, device=pillar_features.device)
             
             batch_mask = points[:, 0] == batch_idx
@@ -82,20 +55,20 @@ class PointPillarScatter(nn.Module):
             xs = torch.clamp(xs, min=0, max=self.nx - 1)
             ys = torch.clamp(ys, min=0, max=self.ny - 1)
             zs = torch.clamp(zs, min=0, max=39)
-            #~ fusion_features[zs, ys, xs] = (this_points[:, -3] + this_points[:, -2] + this_points[:, -1]) / 3
-            #~ fusion_features[zs, ys, xs] = this_points[:, 4]
-            fusion_features[zs, ys, xs] = 1
+            #~ semantic_features[zs, ys, xs] = (this_points[:, -3] + this_points[:, -2] + this_points[:, -1]) / 3
+            #~ semantic_features[zs, ys, xs] = this_points[:, 4]
+            semantic_features[zs, ys, xs] = 1
             
             #~ for i in range(40):
                 #~ plt.subplot(5, 8, i + 1)
-                #~ plt.imshow((fusion_features[i:i + 1, :, :].permute(1, 2, 0).cpu().numpy() * 255).astype(np.int))
+                #~ plt.imshow((semantic_features[i:i + 1, :, :].permute(1, 2, 0).cpu().numpy() * 255).astype(np.int))
                 #~ plt.axis('off')
             #~ plt.show()
             
-            batch_fusion_features.append(fusion_features)
+            batch_semantic_features.append(semantic_features)
         
-        batch_fusion_features = torch.stack(batch_fusion_features, 0)
-        batch_fusion_features = batch_fusion_features.view(batch_size, 40, self.ny, self.nx)
-        batch_dict['fusion_features'] = batch_fusion_features
+        batch_semantic_features = torch.stack(batch_semantic_features, 0)
+        batch_semantic_features = batch_semantic_features.view(batch_size, 40, self.ny, self.nx)
+        batch_dict['semantic_features'] = batch_semantic_features
 
         return batch_dict
