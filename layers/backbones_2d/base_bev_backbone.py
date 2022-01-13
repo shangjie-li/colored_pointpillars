@@ -71,11 +71,11 @@ class BaseBEVBackbone(nn.Module):
             #~ nn.ReLU()
         #~ ) # 20220110
         
-        self.fusion_layers = nn.Sequential(
-            nn.Conv2d(40, input_channels, kernel_size=1, stride=1, padding=0, bias=False),
-            nn.BatchNorm2d(input_channels, eps=1e-3, momentum=0.01),
-            nn.ReLU()
-        ) # 20220111
+        #~ self.fusion_layers = nn.Sequential(
+            #~ nn.Conv2d(40, input_channels, kernel_size=1, stride=1, padding=0, bias=False),
+            #~ nn.BatchNorm2d(input_channels, eps=1e-3, momentum=0.01),
+            #~ nn.ReLU()
+        #~ ) # 20220111
         
         num_levels = len(layer_nums)
         c_in_list = [input_channels, *num_filters[:-1]]
@@ -151,17 +151,21 @@ class BaseBEVBackbone(nn.Module):
         #~ features = self.fusion_layers(semantic_features) # 20220109, c=40, kernel_size=1, intensity, Car 3d AP: 74.7418, 58.3303, 56.4951
         #~ features = self.fusion_layers(torch.cat([spatial_features, semantic_features], dim=1)) # 20220110, c=64+40, Car 3d AP: 86.1564, 76.6295, 74.6659
         
-        features = self.fusion_layers(semantic_features) # 20220111, c=40, kernel_size=1, occupancy, Car 3d AP: 87.6261, 77.5537, 74.9875 -> this shows colored_pointpillars is shit!!!
+        #~ features = self.fusion_layers(semantic_features) # 20220111, c=40, kernel_size=1, occupancy, Car 3d AP: 87.6261, 77.5537, 74.9875 -> this shows colored_pointpillars is shit!!!
         
         #~ features = self.fusion_layers(torch.cat([spatial_features, semantic_features], dim=1)) # 20220112, c=64+10, Car 3d AP: 86.4325, 76.9217, 75.4987
         #~ features = self.fusion_layers(torch.cat([spatial_features, semantic_features], dim=1)) # 20220113, c=64+20, Car 3d AP: 86.7387, 77.1374, 75.2964
         #~ features = self.fusion_layers(semantic_features) # 20220114, c=10, kernel_size=7, (r+g+b) / 3, Car 3d AP: 85.9258, 75.2121, 71.6240
         #~ features = self.fusion_layers(semantic_features) # 20220115, c=30, kernel_size=1, (r,g,b), Car 3d AP: 84.4311, 75.5213, 71.4392
         
-        #~ features = spatial_features # 20220116, torch.max(), Linear(in_features=10, out_features=64), Car 3d AP: 86.5273, 76.9653, 75.6938
+        features = spatial_features # 20220116, torch.max(), Linear(in_features=10, out_features=64), Car 3d AP: 86.5273, 76.9653, 75.6938
         #~ features = spatial_features # 20220117, torch.mean(), Linear(in_features=10, out_features=64), Car 3d AP: 87.0298, 77.0740, 75.5394
         #~ features = spatial_features # 20220118, torch.max(), Linear(in_features=13, out_features=64), Car 3d AP: 85.2592, 76.3921, 73.0607
         #~ features = spatial_features # 20220119, torch.mean(), Linear(in_features=13, out_features=64), Car 3d AP: 85.2050, 76.1199, 72.4744
+        
+        #~ features = spatial_features # 20220120, double points, torch.max(), Linear(in_features=10, out_features=64), Car 3d AP: AP:86.2017, 76.7041, 73.9883
+        #~ features = self.fusion_layers(semantic_features) # 20220121, double points, c=40, kernel_size=1, occupancy, Car 3d AP: 86.5430, 76.6896, 72.1760
+        #~ features = self.fusion_layers(semantic_features) # 20220122, double points, c=40, kernel_size=1, (r+g+b) / 3, Car 3d AP: 86.0676, 76.4452, 71.8087
         
         ups = []
         x = features
@@ -182,6 +186,27 @@ class BaseBEVBackbone(nn.Module):
         if len(self.deblocks) > len(self.blocks):
             x = self.deblocks[-1](x)
 
+        import matplotlib.pyplot as plt
+        import numpy as np
+        import time
+        
+        #~ batch_size = x.shape[0]
+        #~ for batch_idx in range(batch_size):
+            #~ feature_map = x[batch_idx]
+            #~ fig = plt.figure(figsize=(16, 16))
+            #~ fig.subplots_adjust(left=0.05, right=0.95, bottom=0.05, top=0.95, wspace=0.05, hspace=0.05)
+            #~ for i in range(0, 32):
+                #~ img = feature_map[i + 256:i + 1 + 256].permute(1, 2, 0).cpu().numpy()
+                #~ img = img[::-1, :, :] # y -> -y
+                #~ pmin = np.min(img)
+                #~ pmax = np.max(img)
+                #~ img = (((img - pmin) / (pmax - pmin + 0.000001)) * 255).astype(np.int)
+                #~ plt.subplot(4, 8, i + 1)
+                #~ plt.imshow(img)
+                #~ plt.axis('off')
+            #~ plt.show()
+            #~ fig.savefig(time.asctime(time.localtime(time.time())), dpi=200)
+        
         data_dict['spatial_features_2d'] = x
 
         return data_dict

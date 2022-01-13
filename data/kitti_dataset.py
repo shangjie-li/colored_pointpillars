@@ -476,6 +476,8 @@ class KittiDataset(torch_data.Dataset):
 
         if "colored_points" in get_item_list:
             colored_points = self.get_colored_points_in_fov(sample_idx)
+            #~ points_new = (colored_points[:-1] + colored_points[1:]) / 2
+            #~ colored_points = np.concatenate([colored_points, points_new], axis=0)
             input_dict['points'] = colored_points
 
         if "image" in get_item_list:

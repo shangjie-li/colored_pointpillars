@@ -117,6 +117,8 @@ class DataBaseSampler(object):
             obj_points = np.fromfile(str(file_path), dtype=np.float32).reshape(-1, self.num_point_features)
             obj_points[:, :3] += info['box3d_lidar'][:3]
             obj_points[:, 2] -= mv_height[idx] # adjust the height of obj_points
+            #~ points_new = (obj_points[:-1] + obj_points[1:]) / 2
+            #~ obj_points = np.concatenate([obj_points, points_new], axis=0)
             obj_points_list.append(obj_points)
         obj_points = np.concatenate(obj_points_list, axis=0)
         

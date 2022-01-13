@@ -76,7 +76,9 @@ class PillarVFE(VFETemplate):
         self.with_distance = self.model_cfg.WITH_DISTANCE
         self.use_absolute_xyz = self.model_cfg.USE_ABSLOTE_XYZ
         #~ num_point_features += 6 if self.use_absolute_xyz else 3
+        
         num_point_features = 10 # (x, y, z, intensity, cluster_x, cluster_y, cluster_z, center_x, center_y, center_z)
+        #~ num_point_features = 13 # (x, y, z, intensity, r, g, b, cluster_x, cluster_y, cluster_z, center_x, center_y, center_z)
         
         if self.with_distance:
             num_point_features += 1
@@ -127,7 +129,8 @@ class PillarVFE(VFETemplate):
         #~ else:
             #~ features = [voxel_features[..., 3:], f_cluster, f_center]
         
-        features = [voxel_features[..., :4], f_cluster, f_center] # only consider (x, y, z, intensity) in voxel_features
+        features = [voxel_features[..., :4], f_cluster, f_center] # consider (x, y, z, intensity) in voxel_features
+        #~ features = [voxel_features[..., :7], f_cluster, f_center] # consider (x, y, z, intensity, r, g, b) in voxel_features
 
         if self.with_distance:
             points_dist = torch.norm(voxel_features[:, :, :3], 2, 2, keepdim=True)
