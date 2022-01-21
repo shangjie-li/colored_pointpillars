@@ -3,6 +3,78 @@ import torch
 import torch.nn as nn
 
 
+class AttentionalFusionModule(nn.Module):
+    def __init__(self, input_channels):
+        super().__init__()
+        
+        self.w_1 = nn.Sequential(
+            nn.Conv2d(input_channels, 1, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.BatchNorm2d(1, eps=1e-3, momentum=0.01),
+        )
+        self.w_2 = nn.Sequential(
+            nn.Conv2d(input_channels, 1, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.BatchNorm2d(1, eps=1e-3, momentum=0.01),
+        )
+        
+    def forward(self, x_1, x_2):
+        weight_1 = self.w_1(x_1)
+        weight_2 = self.w_2(x_2)
+        aw = torch.softmax(torch.cat([weight_1, weight_2], dim=1), dim=1)
+        y = x_1 * aw[:, 0:1, :, :] + x_2 * aw[:, 1:2, :, :]
+        return y.contiguous()
+
+
+class SharpeningFusionModule(nn.Module):
+    def __init__(self, input_channels):
+        super().__init__()
+        
+        self.fusion_layer_1x1 = nn.Sequential(
+            nn.Conv2d(input_channels * 2, input_channels, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.BatchNorm2d(input_channels, eps=1e-3, momentum=0.01),
+        )
+        self.fusion_layer_3x3 = nn.Sequential(
+            nn.Conv2d(input_channels, input_channels, kernel_size=3, stride=1, padding=1, bias=False),
+            nn.BatchNorm2d(input_channels, eps=1e-3, momentum=0.01),
+        )
+        
+    def forward(self, x_1, x_2):
+        x = torch.cat([x_1, x_2], dim=1)
+        w = torch.sigmoid(self.fusion_layer_3x3(self.fusion_layer_1x1(x)))
+        f_1 = w * x_1
+        f_2 = (1 - w) * x_2
+        sum_f = f_1 + f_2
+        max_f = torch.max(f_1, f_2)
+        mean_threshold = F.adaptive_avg_pool2d(sum_f, output_size=(1, 1)) # [B, C, 1, 1]
+        y = torch.where(max_f > mean_threshold, max_f * 2, sum_f)
+        return y.contiguous()
+
+
+class GatedFusionModule(nn.Module):
+    def __init__(self, input_channels):
+        super().__init__()
+        
+        self.conv_1 = nn.Sequential(
+            nn.Conv2d(input_channels * 2, input_channels, kernel_size=3, stride=1, padding=1, bias=False),
+            nn.BatchNorm2d(input_channels, eps=1e-3, momentum=0.01),
+        )
+        self.conv_2 = nn.Sequential(
+            nn.Conv2d(input_channels * 2, input_channels, kernel_size=3, stride=1, padding=1, bias=False),
+            nn.BatchNorm2d(input_channels, eps=1e-3, momentum=0.01),
+        )
+        
+        self.fusion_layer = nn.Sequential(
+            nn.Conv2d(input_channels * 2, input_channels, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.BatchNorm2d(input_channels, eps=1e-3, momentum=0.01),
+        )
+        
+    def forward(self, x_1, x_2):
+        x = torch.cat([x_1, x_2], dim=1)
+        f_1 = torch.sigmoid(self.conv_1(x)) * x_1
+        f_2 = torch.sigmoid(self.conv_2(x)) * x_2
+        y = self.fusion_layer(torch.cat([f_1, f_2], dim=1))
+        return y.contiguous()
+
+
 class BaseBEVBackbone(nn.Module):
     def __init__(self, model_cfg, input_channels):
         super().__init__()
@@ -77,12 +149,34 @@ class BaseBEVBackbone(nn.Module):
             #~ nn.ReLU()
         #~ ) # 20220111
         
+        #~ self.spatial_conv1x1 = nn.Sequential(
+            #~ nn.Conv2d(input_channels, input_channels, kernel_size=1, stride=1, padding=0, bias=False),
+            #~ nn.BatchNorm2d(input_channels, eps=1e-3, momentum=0.01),
+            #~ nn.ReLU()
+        #~ )
+        #~ self.semantic_conv1x1 = nn.Sequential(
+            #~ nn.Conv2d(input_channels, input_channels, kernel_size=1, stride=1, padding=0, bias=False),
+            #~ nn.BatchNorm2d(input_channels, eps=1e-3, momentum=0.01),
+            #~ nn.ReLU()
+        #~ )
+        
         num_levels = len(layer_nums)
         c_in_list = [input_channels, *num_filters[:-1]]
-        self.blocks = nn.ModuleList()
-        self.deblocks = nn.ModuleList()
+        self.blocks_1 = nn.ModuleList()
+        self.blocks_2 = nn.ModuleList()
+        self.deblocks_1 = nn.ModuleList()
+        self.deblocks_2 = nn.ModuleList()
         for idx in range(num_levels):
-            cur_layers = [
+            cur_layers_1 = [
+                nn.ZeroPad2d(1),
+                nn.Conv2d(
+                    c_in_list[idx], num_filters[idx], kernel_size=3,
+                    stride=layer_strides[idx], padding=0, bias=False
+                ),
+                nn.BatchNorm2d(num_filters[idx], eps=1e-3, momentum=0.01),
+                nn.ReLU()
+            ]
+            cur_layers_2 = [
                 nn.ZeroPad2d(1),
                 nn.Conv2d(
                     c_in_list[idx], num_filters[idx], kernel_size=3,
@@ -92,16 +186,31 @@ class BaseBEVBackbone(nn.Module):
                 nn.ReLU()
             ]
             for k in range(layer_nums[idx]):
-                cur_layers.extend([
+                cur_layers_1.extend([
                     nn.Conv2d(num_filters[idx], num_filters[idx], kernel_size=3, padding=1, bias=False),
                     nn.BatchNorm2d(num_filters[idx], eps=1e-3, momentum=0.01),
                     nn.ReLU()
                 ])
-            self.blocks.append(nn.Sequential(*cur_layers))
+                cur_layers_2.extend([
+                    nn.Conv2d(num_filters[idx], num_filters[idx], kernel_size=3, padding=1, bias=False),
+                    nn.BatchNorm2d(num_filters[idx], eps=1e-3, momentum=0.01),
+                    nn.ReLU()
+                ])
+            self.blocks_1.append(nn.Sequential(*cur_layers_1))
+            self.blocks_2.append(nn.Sequential(*cur_layers_2))
             if len(upsample_strides) > 0:
                 stride = upsample_strides[idx]
                 if stride >= 1:
-                    self.deblocks.append(nn.Sequential(
+                    self.deblocks_1.append(nn.Sequential(
+                        nn.ConvTranspose2d(
+                            num_filters[idx], num_upsample_filters[idx],
+                            upsample_strides[idx],
+                            stride=upsample_strides[idx], bias=False
+                        ),
+                        nn.BatchNorm2d(num_upsample_filters[idx], eps=1e-3, momentum=0.01),
+                        nn.ReLU()
+                    ))
+                    self.deblocks_2.append(nn.Sequential(
                         nn.ConvTranspose2d(
                             num_filters[idx], num_upsample_filters[idx],
                             upsample_strides[idx],
@@ -112,7 +221,16 @@ class BaseBEVBackbone(nn.Module):
                     ))
                 else:
                     stride = np.round(1 / stride).astype(np.int)
-                    self.deblocks.append(nn.Sequential(
+                    self.deblocks_1.append(nn.Sequential(
+                        nn.Conv2d(
+                            num_filters[idx], num_upsample_filters[idx],
+                            stride,
+                            stride=stride, bias=False
+                        ),
+                        nn.BatchNorm2d(num_upsample_filters[idx], eps=1e-3, momentum=0.01),
+                        nn.ReLU()
+                    ))
+                    self.deblocks_2.append(nn.Sequential(
                         nn.Conv2d(
                             num_filters[idx], num_upsample_filters[idx],
                             stride,
@@ -124,13 +242,22 @@ class BaseBEVBackbone(nn.Module):
 
         c_in = sum(num_upsample_filters)
         if len(upsample_strides) > num_levels:
-            self.deblocks.append(nn.Sequential(
+            self.deblocks_1.append(nn.Sequential(
+                nn.ConvTranspose2d(c_in, c_in, upsample_strides[-1], stride=upsample_strides[-1], bias=False),
+                nn.BatchNorm2d(c_in, eps=1e-3, momentum=0.01),
+                nn.ReLU(),
+            ))
+            self.deblocks_2.append(nn.Sequential(
                 nn.ConvTranspose2d(c_in, c_in, upsample_strides[-1], stride=upsample_strides[-1], bias=False),
                 nn.BatchNorm2d(c_in, eps=1e-3, momentum=0.01),
                 nn.ReLU(),
             ))
 
         self.num_bev_features = c_in
+        
+        self.fusion_layers = AttentionalFusionModule(c_in)
+        #~ self.fusion_layers = SharpeningFusionModule(c_in)
+        #~ self.fusion_layers = GatedFusionModule(c_in)
 
     def forward(self, data_dict):
         """
@@ -158,7 +285,7 @@ class BaseBEVBackbone(nn.Module):
         #~ features = self.fusion_layers(semantic_features) # 20220114, c=10, kernel_size=7, (r+g+b) / 3, Car 3d AP: 85.9258, 75.2121, 71.6240
         #~ features = self.fusion_layers(semantic_features) # 20220115, c=30, kernel_size=1, (r,g,b), Car 3d AP: 84.4311, 75.5213, 71.4392
         
-        features = spatial_features # 20220116, torch.max(), Linear(in_features=10, out_features=64), Car 3d AP: 86.5273, 76.9653, 75.6938
+        #~ features = spatial_features # 20220116, torch.max(), Linear(in_features=10, out_features=64), Car 3d AP: 86.5273, 76.9653, 75.6938
         #~ features = spatial_features # 20220117, torch.mean(), Linear(in_features=10, out_features=64), Car 3d AP: 87.0298, 77.0740, 75.5394
         #~ features = spatial_features # 20220118, torch.max(), Linear(in_features=13, out_features=64), Car 3d AP: 85.2592, 76.3921, 73.0607
         #~ features = spatial_features # 20220119, torch.mean(), Linear(in_features=13, out_features=64), Car 3d AP: 85.2050, 76.1199, 72.4744
@@ -167,14 +294,17 @@ class BaseBEVBackbone(nn.Module):
         #~ features = self.fusion_layers(semantic_features) # 20220121, double points, c=40, kernel_size=1, occupancy, Car 3d AP: 86.5430, 76.6896, 72.1760
         #~ features = self.fusion_layers(semantic_features) # 20220122, double points, c=40, kernel_size=1, (r+g+b) / 3, Car 3d AP: 86.0676, 76.4452, 71.8087
         
+        #~ features = semantic_features # 20220123, c=64, (r+g+b) / 3, Car 3d AP: 85.9842, 76.4812, 72.2739
+        
+        #~ spatial_features = self.spatial_conv1x1(spatial_features)
+        #~ semantic_features = self.semantic_conv1x1(semantic_features)
+        
         ups = []
-        x = features
-        for i in range(len(self.blocks)):
-            x = self.blocks[i](x)
-
-            stride = int(spatial_features.shape[2] / x.shape[2])
-            if len(self.deblocks) > 0:
-                ups.append(self.deblocks[i](x))
+        x = spatial_features
+        for i in range(len(self.blocks_1)):
+            x = self.blocks_1[i](x)
+            if len(self.deblocks_1) > 0:
+                ups.append(self.deblocks_1[i](x))
             else:
                 ups.append(x)
 
@@ -183,8 +313,27 @@ class BaseBEVBackbone(nn.Module):
         elif len(ups) == 1:
             x = ups[0]
 
-        if len(self.deblocks) > len(self.blocks):
-            x = self.deblocks[-1](x)
+        if len(self.deblocks_1) > len(self.blocks_1):
+            x = self.deblocks_1[-1](x)
+        final_spatial_features = x
+        
+        ups = []
+        x = semantic_features
+        for i in range(len(self.blocks_2)):
+            x = self.blocks_2[i](x)
+            if len(self.deblocks_2) > 0:
+                ups.append(self.deblocks_2[i](x))
+            else:
+                ups.append(x)
+        
+        if len(ups) > 1:
+            x = torch.cat(ups, dim=1)
+        elif len(ups) == 1:
+            x = ups[0]
+        
+        if len(self.deblocks_2) > len(self.blocks_2):
+            x = self.deblocks_2[-1](x)
+        final_semantic_features = x
 
         import matplotlib.pyplot as plt
         import numpy as np
@@ -207,6 +356,12 @@ class BaseBEVBackbone(nn.Module):
             #~ plt.show()
             #~ fig.savefig(time.asctime(time.localtime(time.time())), dpi=200)
         
-        data_dict['spatial_features_2d'] = x
+        #~ final_features = self.fusion_layers(final_spatial_features, final_semantic_features) # 20220124, c=64, (r+g+b) / 3, AttentionalFusionModule, 39ms, Car 3d AP: 88.4615, 78.1517, 77.0567
+        #~ final_features = self.fusion_layers(final_spatial_features, final_semantic_features) # 20220125, c=64, intensity, AttentionalFusionModule, 39ms, Car 3d AP: 87.5320, 77.3184, 75.2125 -> better than pointpillars in all categories
+        #~ final_features = self.fusion_layers(final_spatial_features, final_semantic_features) # 20220126, c=64, occupancy, AttentionalFusionModule, 39ms
+        #~ final_features = self.fusion_layers(final_spatial_features, final_semantic_features) # 20220127, c=64, (r+g+b) / 3, semantic_conv1x1, AttentionalFusionModule, 38ms, Car 3d AP: 88.6761, 78.3303, 76.9806
+        #~ final_features = self.fusion_layers(final_spatial_features, final_semantic_features) # 20220128, c=64, (r+g+b) / 3, spatial_conv1x1, semantic_conv1x1, AttentionalFusionModule, 38ms, Car 3d AP: 88.1927, 77.8198, 76.4382
+        
+        data_dict['spatial_features_2d'] = final_features
 
         return data_dict

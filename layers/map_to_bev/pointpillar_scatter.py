@@ -62,26 +62,26 @@ class PointPillarScatter(nn.Module):
         batch_size = points[:, 0].max().int().item() + 1
         for batch_idx in range(batch_size):
             semantic_features = torch.zeros(
-                1, self.ny, self.nx, dtype=pillar_features.dtype, device=pillar_features.device)
+                self.num_bev_features, self.ny, self.nx, dtype=pillar_features.dtype, device=pillar_features.device)
             
             batch_mask = points[:, 0] == batch_idx
             this_points = points[batch_mask, :]
             xs = (this_points[:, 1] / self.voxel_x).type(torch.long)
             ys = (this_points[:, 2] / self.voxel_y + self.ny / 2).type(torch.long)
-            zs = ((this_points[:, 3] + 3.0) / (self.voxel_z / 1)).type(torch.long)
+            zs = ((this_points[:, 3] + 3.0) / (self.voxel_z / self.num_bev_features)).type(torch.long)
             xs = torch.clamp(xs, min=0, max=self.nx - 1)
             ys = torch.clamp(ys, min=0, max=self.ny - 1)
-            zs = torch.clamp(zs, min=0, max=0)
+            zs = torch.clamp(zs, min=0, max=self.num_bev_features - 1)
             semantic_features[zs, ys, xs] = (this_points[:, -3] + this_points[:, -2] + this_points[:, -1]) / 3
             #~ semantic_features[zs, ys, xs] = this_points[:, 4]
             #~ semantic_features[zs, ys, xs] = 1
             
             #~ fig = plt.figure(figsize=(16, 16))
             #~ fig.subplots_adjust(left=0.05, right=0.95, bottom=0.05, top=0.95, wspace=0.05, hspace=0.05)
-            #~ for i in range(1):
+            #~ for i in range(0, 32):
                 #~ img = (semantic_features[i:i + 1, :, :].permute(1, 2, 0).cpu().numpy() * 255).astype(np.int)
                 #~ img = img[::-1, :, :] # y -> -y
-                #~ plt.subplot(1, 1, i + 1)
+                #~ plt.subplot(4, 8, i + 1)
                 #~ plt.imshow(img)
                 #~ plt.axis('off')
             #~ plt.show()
@@ -90,7 +90,7 @@ class PointPillarScatter(nn.Module):
             batch_semantic_features.append(semantic_features)
         
         batch_semantic_features = torch.stack(batch_semantic_features, 0)
-        batch_semantic_features = batch_semantic_features.view(batch_size, 1, self.ny, self.nx)
+        batch_semantic_features = batch_semantic_features.view(batch_size, self.num_bev_features, self.ny, self.nx)
         batch_dict['semantic_features'] = batch_semantic_features
         
         return batch_dict
