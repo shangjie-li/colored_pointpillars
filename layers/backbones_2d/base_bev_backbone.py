@@ -149,16 +149,16 @@ class BaseBEVBackbone(nn.Module):
             #~ nn.ReLU()
         #~ ) # 20220111
         
-        #~ self.spatial_conv1x1 = nn.Sequential(
-            #~ nn.Conv2d(input_channels, input_channels, kernel_size=1, stride=1, padding=0, bias=False),
-            #~ nn.BatchNorm2d(input_channels, eps=1e-3, momentum=0.01),
-            #~ nn.ReLU()
-        #~ )
-        #~ self.semantic_conv1x1 = nn.Sequential(
-            #~ nn.Conv2d(input_channels, input_channels, kernel_size=1, stride=1, padding=0, bias=False),
-            #~ nn.BatchNorm2d(input_channels, eps=1e-3, momentum=0.01),
-            #~ nn.ReLU()
-        #~ )
+        self.spatial_conv1x1 = nn.Sequential(
+            nn.Conv2d(input_channels, input_channels, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.BatchNorm2d(input_channels, eps=1e-3, momentum=0.01),
+            nn.ReLU()
+        )
+        self.semantic_conv1x1 = nn.Sequential(
+            nn.Conv2d(input_channels, input_channels, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.BatchNorm2d(input_channels, eps=1e-3, momentum=0.01),
+            nn.ReLU()
+        )
         
         num_levels = len(layer_nums)
         c_in_list = [input_channels, *num_filters[:-1]]
@@ -278,7 +278,8 @@ class BaseBEVBackbone(nn.Module):
         #~ features = self.fusion_layers(semantic_features) # 20220109, c=40, kernel_size=1, intensity, Car 3d AP: 74.7418, 58.3303, 56.4951
         #~ features = self.fusion_layers(torch.cat([spatial_features, semantic_features], dim=1)) # 20220110, c=64+40, Car 3d AP: 86.1564, 76.6295, 74.6659
         
-        #~ features = self.fusion_layers(semantic_features) # 20220111, c=40, kernel_size=1, occupancy, Car 3d AP: 87.6261, 77.5537, 74.9875 -> this shows colored_pointpillars is shit!!!
+        # This is incredible, but I don't think this proves anything.
+        #~ features = self.fusion_layers(semantic_features) # 20220111, c=40, kernel_size=1, occupancy, Car 3d AP: 87.6261, 77.5537, 74.9875
         
         #~ features = self.fusion_layers(torch.cat([spatial_features, semantic_features], dim=1)) # 20220112, c=64+10, Car 3d AP: 86.4325, 76.9217, 75.4987
         #~ features = self.fusion_layers(torch.cat([spatial_features, semantic_features], dim=1)) # 20220113, c=64+20, Car 3d AP: 86.7387, 77.1374, 75.2964
@@ -296,8 +297,8 @@ class BaseBEVBackbone(nn.Module):
         
         #~ features = semantic_features # 20220123, c=64, (r+g+b) / 3, Car 3d AP: 85.9842, 76.4812, 72.2739
         
-        #~ spatial_features = self.spatial_conv1x1(spatial_features)
-        #~ semantic_features = self.semantic_conv1x1(semantic_features)
+        spatial_features = self.spatial_conv1x1(spatial_features)
+        semantic_features = self.semantic_conv1x1(semantic_features)
         
         ups = []
         x = spatial_features
@@ -356,11 +357,17 @@ class BaseBEVBackbone(nn.Module):
             #~ plt.show()
             #~ fig.savefig(time.asctime(time.localtime(time.time())), dpi=200)
         
-        #~ final_features = self.fusion_layers(final_spatial_features, final_semantic_features) # 20220124, c=64, (r+g+b) / 3, AttentionalFusionModule, 39ms, Car 3d AP: 88.4615, 78.1517, 77.0567
-        #~ final_features = self.fusion_layers(final_spatial_features, final_semantic_features) # 20220125, c=64, intensity, AttentionalFusionModule, 39ms, Car 3d AP: 87.5320, 77.3184, 75.2125 -> better than pointpillars in all categories
+        # Car 3d AP: 88.4615, 78.1517, 77.0567 -> Better than `intensity` model and `occupancy` model in Car class.
+        #~ final_features = self.fusion_layers(final_spatial_features, final_semantic_features) # 20220124, c=64, (r+g+b) / 3, AttentionalFusionModule, 39ms
+        # Car 3d AP: 87.5320, 77.3184, 75.2125 -> This model is better than pointpillars in all categories, which is embarrassing.
+        #~ final_features = self.fusion_layers(final_spatial_features, final_semantic_features) # 20220125, c=64, intensity, AttentionalFusionModule, 39ms
+        # Car 3d AP: 88.4228, 77.9727, 76.6534 -> Like I said, `occupancy` model shouldn't be the best.
         #~ final_features = self.fusion_layers(final_spatial_features, final_semantic_features) # 20220126, c=64, occupancy, AttentionalFusionModule, 39ms
-        #~ final_features = self.fusion_layers(final_spatial_features, final_semantic_features) # 20220127, c=64, (r+g+b) / 3, semantic_conv1x1, AttentionalFusionModule, 38ms, Car 3d AP: 88.6761, 78.3303, 76.9806
-        #~ final_features = self.fusion_layers(final_spatial_features, final_semantic_features) # 20220128, c=64, (r+g+b) / 3, spatial_conv1x1, semantic_conv1x1, AttentionalFusionModule, 38ms, Car 3d AP: 88.1927, 77.8198, 76.4382
+        
+        # Car 3d AP: 88.6761, 78.3303, 76.9806
+        #~ final_features = self.fusion_layers(final_spatial_features, final_semantic_features) # 20220127, c=64, (r+g+b) / 3, semantic_conv1x1, AttentionalFusionModule, 38ms
+        # Car 3d AP: 88.1927, 77.8198, 76.4382
+        final_features = self.fusion_layers(final_spatial_features, final_semantic_features) # 20220128, c=64, (r+g+b) / 3, spatial_conv1x1, semantic_conv1x1, AttentionalFusionModule, 38ms
         
         data_dict['spatial_features_2d'] = final_features
 
