@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 
 class AttentionalFusionModule(nn.Module):
@@ -366,8 +367,13 @@ class BaseBEVBackbone(nn.Module):
         
         # Car 3d AP: 88.6761, 78.3303, 76.9806
         #~ final_features = self.fusion_layers(final_spatial_features, final_semantic_features) # 20220127, c=64, (r+g+b) / 3, semantic_conv1x1, AttentionalFusionModule, 38ms
-        # Car 3d AP: 88.1927, 77.8198, 76.4382
+        # Car 3d AP: 88.1927, 77.8198, 76.4382 -> AttentionalFusionModule is more efficient and effective than the other two fusion strategies.
         final_features = self.fusion_layers(final_spatial_features, final_semantic_features) # 20220128, c=64, (r+g+b) / 3, spatial_conv1x1, semantic_conv1x1, AttentionalFusionModule, 38ms
+        
+        # Car 3d AP: 87.8660, 77.8332, 76.0946
+        #~ final_features = self.fusion_layers(final_spatial_features, final_semantic_features) # 20220129, c=64, (r+g+b) / 3, spatial_conv1x1, semantic_conv1x1, SharpeningFusionModule, 59ms
+        # Car 3d AP: 87.6696, 77.8055, 76.5038
+        #~ final_features = self.fusion_layers(final_spatial_features, final_semantic_features) # 20220130, c=64, (r+g+b) / 3, spatial_conv1x1, semantic_conv1x1, GatedFusionModule, 92ms
         
         data_dict['spatial_features_2d'] = final_features
 
