@@ -71,6 +71,9 @@ class KittiDataset(torch_data.Dataset):
         image = io.imread(img_file)
         image = image.astype(np.float32)
         image /= 255.0
+        #~ means = np.array((93.83, 98.76, 95.88), dtype=np.float32)
+        #~ std = np.array((78.78, 80.13, 81.2), dtype=np.float32)
+        #~ image = (image - means) / std
         return image
 
     def get_image_shape(self, idx):

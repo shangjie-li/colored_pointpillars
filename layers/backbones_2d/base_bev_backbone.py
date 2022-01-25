@@ -375,6 +375,9 @@ class BaseBEVBackbone(nn.Module):
         # Car 3d AP: 87.6696, 77.8055, 76.5038
         #~ final_features = self.fusion_layers(final_spatial_features, final_semantic_features) # 20220130, c=64, (r+g+b) / 3, spatial_conv1x1, semantic_conv1x1, GatedFusionModule, 92ms
         
+        # Car 3d AP: 86.8881, 76.9685, 75.3811 -> It seems that `image = (image - means) / std` can't improve the model, so I decide to use `image /= 255.0`.
+        #~ final_features = self.fusion_layers(final_spatial_features, final_semantic_features) # 20220131, image = (image - means) / std, c=64, (r+g+b) / 3, spatial_conv1x1, semantic_conv1x1, GatedFusionModule, 38ms
+        
         data_dict['spatial_features_2d'] = final_features
 
         return data_dict
